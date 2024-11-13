@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>¿De qué raza vengo?</title>
+  <!-- Cargar Tailwind CSS desde un CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    .timer-bar {
+      transition: width 0.1s linear;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-blue-300 to-purple-400 flex items-center justify-center min-h-screen">
+  <div class="container mx-auto p-6 max-w-md bg-white shadow-lg rounded-lg text-center">
+    <h1 class="text-3xl md:text-5xl font-bold mb-6 text-gray-800">¿De qué raza vengo?</h1>
+    
+    <!-- Puntaje y temporizador -->
+    <div id="stats" class="text-xl mb-4 text-gray-700">
+      <span id="score">Puntos: 1000</span> | 
+      <span id="correct">Aciertos: 0</span> | 
+      <span id="wrong">Errores: 0</span> |
+      <span id="question-count">Pregunta: 1/20</span>
+    </div>
+    <div id="timer-container" class="w-full h-4 bg-gray-200 rounded-lg overflow-hidden mb-6">
+      <div id="timer-bar" class="timer-bar h-full bg-blue-500"></div>
+    </div>
+    
+    <!-- Contenedor de imagen del perro -->
+    <div id="dog-image-container" class="mb-6">
+      <img id="dog-image" src="" alt="Imagen de perro" class="w-full h-auto rounded-lg shadow-md">
+    </div>
+
+    <!-- Opciones de respuesta -->
+    <div id="options-container" class="grid grid-cols-2 gap-4 mb-6">
+      <!-- Opciones se generarán aquí -->
+    </div>
+
+    <!-- Feedback de respuesta -->
+    <p id="feedback" class="text-lg font-semibold mb-4"></p>
+
+    <!-- Botón para pasar a la siguiente pregunta -->
+    <button onclick="getNewDog()" class="px-4 py-2 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition">
+      Siguiente pregunta
+    </button>
+
+    <!-- Botón para compartir en WhatsApp -->
+    <button onclick="shareOnWhatsApp()" class="mt-4 px-4 py-2 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition">
+      Compartir Resultado en WhatsApp
+    </button>
+  </div>
+
+  <script>
+    let breeds = [];
+    let currentQuestion = 1;
+    let correctAnswers = 0;
+    let wrongAnswers = 0;
+    let score = 1000;
+    let countdown;
+    const maxQuestions = 20;
+
+    const optionsContainer = document.getElementById("options-container");
+    const feedback = document.getElementById("feedback");
+    const scoreDisplay = document.getElementById("score");
+    const correctDisplay = document.getElementById("correct");
+    const wrongDisplay = document.getElementById("wrong");
+    const questionCountDisplay = document.getElementById("question-count");
+    const timerBar = document.getElementById("timer-bar");
+
+    // Configuración de URL y mensaje para compartir en WhatsApp
+    const appUrl = window.location.href;
+    let shareMessage = "";
+
+    function shareOnWhatsApp() {
+      const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareMessage)}`;
+      window.open(url, '_blank');
+    }
+
+    // Obtener todas las razas de perros de la API
+    async function loadBreeds() {
+      try {
+        const response = await fetch("https://dog.ceo/api/breeds/list/all");
+        const data = await response.json();
+        breeds = Object.keys(data.message);
+        getNewDog(); // Cargar la primera imagen después de obtener las razas
+      } catch (error) {
+        feedback.innerText = "Error al cargar las razas de perros.";
+        console.error("Error al cargar las razas:", error);
+      }
+    }
+
+    // Obtener una imagen aleatoria de una raza y comenzar la cuenta atrás
+    function getNewDog() {
+      if (currentQuestion > maxQuestions) {
+        endGame();
+        return;
+      }
+
+      feedback.innerText = "";
+      const randomBreed = breeds[Math.floor(Math.random() * breeds.length)];
+      
+      fetch(`https://dog.ceo/api/breed/${randomBreed}/images/random`)
+        .then(response => response.json())
+        .then(data => {
+          document.getElementById("dog-image").src = data.message;
+          createOptions(randomBreed);
+          startTimer();
+        })
+        .catch(error => {
+          feedback.innerText = "Error al cargar la imagen del perro.";
+          console.error("Error al cargar la imagen:", error);
+        });
+    }
+
+    // Crear opciones de respuesta con la raza correcta y otras al azar
+    function createOptions(correctBreed) {
+      optionsContainer.innerHTML = "";
+      const options = [correctBreed, ...getRandomBreeds(correctBreed, 3)];
+      options.sort(() => Math.random() - 0.5); // Mezclar las opciones
+
+      options.forEach(breed => {
+        const button = document.createElement("button");
+        button.innerText = breed;
+        button.className = "py-2 px-4 bg-yellow-200 rounded-lg font-medium hover:bg-yellow-300 transition";
+        button.onclick = () => checkAnswer(breed, correctBreed);
+        optionsContainer.appendChild(button);
+      });
+    }
+
+    // Obtener razas aleatorias que no incluyan la raza correcta
+    function getRandomBreeds(correctBreed, count) {
+      const randomBreeds = [];
+      while (randomBreeds.length < count) {
+        const randomBreed = breeds[Math.floor(Math.random() * breeds.length)];
+        if (randomBreed !== correctBreed && !randomBreeds.includes(randomBreed)) {
+          randomBreeds.push(randomBreed);
+        }
+      }
+      return randomBreeds;
+    }
+
+    // Comprobar si la respuesta seleccionada es correcta
+    function checkAnswer(selectedBreed, correctBreed) {
+      clearInterval(countdown); // Detener el temporizador
+      if (selectedBreed === correctBreed) {
+        feedback.innerText = "¡Correcto! 🎉";
+        feedback.className = "text-green-500 font-semibold";
+        correctAnswers++;
+        correctDisplay.innerText = `Aciertos: ${correctAnswers}`;
+        score += score > 0 ? score : 0;
+      } else {
+        feedback.innerText = `Incorrecto. La respuesta era ${correctBreed}.`;
+        feedback.className = "text-red-500 font-semibold";
+        wrongAnswers++;
+        wrongDisplay.innerText = `Errores: ${wrongAnswers}`;
+      }
+      currentQuestion++;
+      questionCountDisplay.innerText = `Pregunta: ${currentQuestion}/${maxQuestions}`;
+    }
+
+    // Función de temporizador para reducir el puntaje y ajustar la barra de tiempo
+    function startTimer() {
+      score = 1000;
+      timerBar.style.width = "100%";
+      countdown = setInterval(() => {
+        score -= 50;
+        scoreDisplay.innerText = `Puntos: ${score > 0 ? score : 0}`;
+        timerBar.style.width = `${(score / 1000) * 100}%`;
+
+        if (score <= 0) {
+          clearInterval(countdown);
+          feedback.innerText = `¡Tiempo agotado!`;
+          feedback.className = "text-red-500 font-semibold";
+          wrongAnswers++;
+          wrongDisplay.innerText = `Errores: ${wrongAnswers}`;
+          currentQuestion++;
+          questionCountDisplay.innerText = `Pregunta: ${currentQuestion}/${maxQuestions}`;
+        }
+      }, 1000);
+    }
+
+    // Finalizar el juego cuando se complete el test
+    function endGame() {
+      let evaluation;
+      if (correctAnswers >= 16) {
+        evaluation = "¡Excelente!";
+      } else if (correctAnswers >= 12) {
+        evaluation = "¡Notable!";
+      } else if (correctAnswers >= 8) {
+        evaluation = "¡Aprobado!";
+      } else {
+        evaluation = "¡Sigue practicando!";
+      }
+      shareMessage = `Obtuve una puntuación de ${correctAnswers} aciertos en '¿De qué raza vengo?': ${evaluation}. ¿Y tú, cuánto sabes de perros? ${appUrl}`;
+      alert(`Juego terminado\nAciertos: ${correctAnswers}\nErrores: ${wrongAnswers}\nEvaluación: ${evaluation}`);
+    }
+
+    // Cargar todas las razas al iniciar la página
+    loadBreeds();
+  </script>
+</body>
+</html>
